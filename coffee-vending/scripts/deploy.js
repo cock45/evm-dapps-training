@@ -1,32 +1,40 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// You can also run a script with `npx hardhat run <script>`. If you do that, Hardhat
-// will compile your contracts, add the Hardhat Runtime Environment's members to the
-// global scope, and execute the script.
-const hre = require("hardhat");
+const path = require("path");
+const fs = require("fs");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
-
-  const lockedAmount = hre.ethers.utils.parseEther("0.001");
-
-  const Lock = await hre.ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
-
-  await lock.deployed();
-
+  // ethers is available in the global scope
+  const [deployer] = await ethers.getSigners();
   console.log(
-    `Lock with ${ethers.utils.formatEther(
-      lockedAmount
-    )}ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`
+    "Deploying the contracts with the account:",
+    await deployer.getAddress()
+  );
+  const CM = await ethers.getContractFactory("CoffeeMachine");
+  const cm = await CM.deploy(deployer.address);
+  await cm.deployed();
+  saveFrontendFiles(cm);
+}
+
+// we add this part to save artifacts and address
+function saveFrontendFiles(cm) {
+  const contractsDir = path.join(__dirname, "/../frontend/src/contracts");
+  if (!fs.existsSync(contractsDir)) {
+    fs.mkdirSync(contractsDir);
+  }
+  fs.writeFileSync(
+    contractsDir + "/contract-address.json",
+    JSON.stringify({ CM: cm.address }, null, 2)
+  );
+  // `artifacts` is a helper property provided by Hardhat to read artifacts
+  const CMArtifact = artifacts.readArtifactSync("CoffeeMachine");
+  fs.writeFileSync(
+    contractsDir + "/CM.json",
+    JSON.stringify(CMArtifact, null, 2)
   );
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
